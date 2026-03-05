@@ -1,0 +1,6 @@
+.claude/
+  commands/     # 48 slash commands, organized by category
+  agents/       # 18 specialized agent definitions
+  rules/        # 22 behavioral rules (always loaded)
+  hooks/        # 11 shell scripts triggered by events
+  skills/       # 4 reusable knowledge files

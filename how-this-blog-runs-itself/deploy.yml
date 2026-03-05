@@ -1,0 +1,22 @@
+name: Deploy Blog
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "blog/**"
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - name: Build and deploy
+        working-directory: blog
+        run: docker compose up -d --build --force-recreate
+      - name: Health check
+        run: |
+          sleep 5
+          curl -sf http://localhost:8090/ || exit 1

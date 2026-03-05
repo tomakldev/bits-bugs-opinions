@@ -1,0 +1,25 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "@modelcontextprotocol/server-filesystem",
+        "/home/user/projects"
+      ]
+    },
+    "github": {
+      "command": "npx",
+      "args": ["@modelcontextprotocol/server-github"],
+      "env": {
+        "GITHUB_TOKEN": "${GITHUB_TOKEN}"
+      }
+    },
+    "tavily": {
+      "type": "http",
+      "url": "https://mcp.tavily.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${TAVILY_API_KEY}"
+      }
+    }
+  }
+}
