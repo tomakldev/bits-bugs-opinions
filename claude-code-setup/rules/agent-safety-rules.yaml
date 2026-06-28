@@ -1,0 +1,127 @@
+# AgentSpec-style pre-action safety rules
+# Loaded by pre-tool-safety.sh for declarative rule evaluation
+# Format: trigger -> check (predicate) -> enforce (action)
+#
+# Actions:
+#   block    - hard block, tool call rejected
+#   inspect  - pause and ask user for confirmation
+#   reprompt - ask agent to justify the action before proceeding
+#
+# Rules are evaluated top-down; first match wins.
+
+rules:
+
+  # --- File system protection ---
+
+  - name: prevent_home_chmod
+    trigger: Bash
+    check:
+      command_matches: 'chmod.*~|chmod.*/home/tomakl'
+    enforce: block
+    reason: "chmod on home directory requires explicit user confirmation"
+
+  - name: prevent_ssh_key_access
+    trigger: Bash
+    check:
+      command_matches: '(cat|cp|mv|scp|rsync).*\.(ssh|pem|key)|id_rsa'
+    enforce: block
+    reason: "accessing SSH keys or PEM files via shell is blocked"
+
+  - name: prevent_vault_unseal
+    trigger: Bash
+    check:
+      command_matches: 'vault.*unseal|vault.*operator'
+    enforce: inspect
+    reason: "Vault operator commands need user confirmation"
+
+  # --- External data exfiltration ---
+
+  - name: prevent_curl_post_with_secrets
+    trigger: Bash
+    check:
+      command_matches: 'curl.*-X\s*POST.*(-d|--data).*(/home|/etc|/root|vault|secret)'
+    enforce: block
+    reason: "POST request with potentially sensitive local data"
+
+  - name: prevent_netcat_outbound
+    trigger: Bash
+    check:
+      command_matches: '(?<![a-zA-Z])(nc|ncat|netcat)\s+[^-]'
+    enforce: inspect
+    reason: "outbound netcat connection needs user confirmation"
+
+  # --- Package and dependency safety ---
+
+  - name: prevent_pip_install_unknown
+    trigger: Bash
+    check:
+      command_matches: 'pip\s+install\s+(?!-r\s+requirements)'
+    enforce: inspect
+    reason: "pip install of individual packages needs confirmation"
+
+  - name: prevent_npm_global_install
+    trigger: Bash
+    check:
+      command_matches: 'npm\s+install\s+-g'
+    enforce: inspect
+    reason: "global npm install needs confirmation"
+
+  # --- Production system protection ---
+
+  - name: prevent_systemctl_stop
+    trigger: Bash
+    check:
+      command_matches: 'systemctl\s+(stop|disable|mask)'
+    enforce: inspect
+    reason: "stopping/disabling services needs user confirmation"
+
+  - name: prevent_iptables_flush
+    trigger: Bash
+    check:
+      command_matches: 'iptables\s+-F|ufw\s+disable'
+    enforce: block
+    reason: "flushing firewall rules is dangerous"
+
+  # --- Git protection ---
+
+  - name: prevent_force_push
+    trigger: Bash
+    check:
+      command_matches: 'git\s+push.*(-f|--force)(?!-with-lease)'
+    enforce: block
+    reason: "force push without --force-with-lease is blocked"
+
+  - name: prevent_git_reset_hard
+    trigger: Bash
+    check:
+      command_matches: 'git\s+reset\s+--hard'
+    enforce: inspect
+    reason: "git reset --hard loses uncommitted work -- confirm first"
+
+  # --- ServiceNow protection ---
+
+  # ServiceNow save -- relies on standard Bash permission prompt (no hard block)
+  # User confirms via normal tool approval flow
+  # - name: block_servicenow_save
+  #   trigger: Bash
+  #   check:
+  #     command_matches: '127\.0\.0\.1:3847/save'
+  #   enforce: inspect
+  #   reason: "ServiceNow save/update requires explicit user confirmation. This will modify a live ticket in production."
+
+  # --- MCP tool protection ---
+
+  - name: prevent_untrusted_mcp_write
+    trigger: mcp__filesystem__write_file
+    check:
+      input_matches:
+        file_path: '^/etc/|\.env$|\.ssh/'
+    enforce: block
+    reason: "MCP filesystem write to sensitive path blocked"
+
+  - name: inspect_jira_create
+    trigger: mcp__atlassian__createJiraIssue
+    check:
+      always: true
+    enforce: inspect
+    reason: "creating Jira issues needs user confirmation"
