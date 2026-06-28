@@ -1,0 +1,66 @@
+services:
+  pgvector:
+    image: pgvector/pgvector:pg17
+    container_name: rag-pgvector
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ragdb
+      POSTGRES_USER: raguser
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /mnt/data/pgdata:/var/lib/postgresql/data
+      - ./migration.sql:/docker-entrypoint-initdb.d/01-migration.sql
+    ports:
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raguser -d ragdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile.mcp
+    container_name: rag-mcp
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python mcp_server.py
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      GOOGLE_APPLICATION_CREDENTIALS: /home/appuser/.config/gcloud/application_default_credentials.json
+      DB_HOST: pgvector
+      DB_PORT: "5432"
+      DB_NAME: ragdb
+      DB_USER: raguser
+      DB_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "7861:7861"
+    volumes:
+      - ~/.config/gcloud:/home/appuser/.config/gcloud:ro
+    depends_on:
+      pgvector:
+        condition: service_healthy
+
+  watcher:
+    build: .
+    container_name: rag-watcher
+    user: "1000:1000"
+    restart: unless-stopped
+    command: python watcher.py /watch/nas /watch/memory
+    environment:
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      PROJECT: ${PROJECT:-fpb-00001-ge}
+      LOCATION: ${LOCATION:-europe-west3}
+      DB_HOST: pgvector
+      DB_PORT: "5432"
+      DB_NAME: ragdb
+      DB_USER: raguser
+      DB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - /mnt/nas/RAG:/watch/nas
+      - /home/tomakl/.claude/projects/-home-tomakl-projects/memory:/watch/memory:ro
+      - ~/.config/gcloud:/home/appuser/.config/gcloud:ro
+    depends_on:
+      pgvector:
+        condition: service_healthy
