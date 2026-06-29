@@ -1,0 +1,50 @@
+# Client-facing compose file.
+# Contains only image references — no source code, no build context.
+# The client runs this; they never see Dockerfiles or application source.
+
+name: myapp
+
+services:
+  backend:
+    image: ${REGISTRY}/myapp/backend:${APP_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      LICENSE_KEY: ${LICENSE_KEY}
+      LICENSE_SERVER_URL: ${LICENSE_SERVER_URL:-https://license.yourdomain.com}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    image: ${REGISTRY}/myapp/frontend:${APP_VERSION:-latest}
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    depends_on:
+      backend:
+        condition: service_healthy

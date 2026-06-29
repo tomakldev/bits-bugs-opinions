@@ -1,0 +1,18 @@
+# Vendor-facing compose file.
+# Used to build images locally before pushing to the private registry.
+# Never sent to the client.
+
+name: myapp-build
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: ${REGISTRY}/myapp/backend:${APP_VERSION:-latest}
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    image: ${REGISTRY}/myapp/frontend:${APP_VERSION:-latest}
